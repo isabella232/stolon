@@ -1347,6 +1347,18 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 			// wals and we'll force a full resync.
 			// We have to find a better way to detect if a standby is waiting
 			// for unavailable wals.
+
+			// start and stop the instance to do crash recovery or pg_rewind
+			// will not work. Ignore possible errors.
+			if tryPgrewind {
+				if err = pgm.Start(); err != nil {
+					log.Error("err", zap.Error(err))
+				}
+				if err = pgm.Stop(true); err != nil {
+					log.Error("err", zap.Error(err))
+				}
+			}
+
 			if err = p.resync(db, masterDB, followedDB, tryPgrewind); err != nil {
 				log.Errorw("failed to resync from followed instance", zap.Error(err))
 				return
