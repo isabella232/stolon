@@ -253,4 +253,30 @@ func TestProxyListening(t *testing.T) {
 	if err := tp.WaitListening(10 * time.Second); err != nil {
 		t.Fatalf("expecting tp listening, but it's not listening.")
 	}
+
+	// turn on maintenance mode
+	t.Logf("test turning on maintenance mode. Expect tp to continue listening")
+	cd.Cluster.MaintenanceMode = true
+	pair, err = sm.AtomicPutClusterData(context.TODO(), cd, pair)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	// tp should still be listening
+	if err := tp.WaitListening(10 * time.Second); err != nil {
+		t.Fatalf("expecting tp listening, but it's not listening.")
+	}
+
+	// tp should not react to any cluster state changes while in maintenance mode
+	t.Logf("test proxy error communicating with store during maintenance mode. Should continue listening")
+	// Stop store
+	tstore.Stop()
+	if err := tstore.WaitDown(10 * time.Second); err != nil {
+		t.Fatalf("error waiting on store down: %v", err)
+	}
+
+	// tp should not listen because it cannot talk with the store
+	if err := tp.WaitNotListening(cluster.DefaultProxyTimeoutInterval * 2); err != nil {
+		t.Fatalf("expecting tp to be listening despite failed store communication, but it's not listening.")
+	}
 }

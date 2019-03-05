@@ -958,6 +958,10 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 		log.Errorw("clusterdata validation failed", zap.Error(err))
 		return
 	}
+	if cd.Cluster != nil && cd.Cluster.MaintenanceMode {
+		log.Infow("cluster in maintenance mode - not doing anything")
+		return
+	}
 	if cd.Cluster != nil {
 		p.sleepInterval = cd.Cluster.DefSpec().SleepInterval.Duration
 		p.requestTimeout = cd.Cluster.DefSpec().RequestTimeout.Duration

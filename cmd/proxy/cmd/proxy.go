@@ -203,6 +203,10 @@ func (c *ClusterChecker) Check() error {
 		return fmt.Errorf("clusterdata validation failed: %v", err)
 	}
 
+	if cd.Cluster != nil && cd.Cluster.MaintenanceMode {
+		log.Infow("cluster in maintenance mode - not doing anything")
+		return nil
+	}
 	proxy := cd.Proxy
 	if proxy == nil {
 		log.Infow("no proxy object available, closing connections to master")

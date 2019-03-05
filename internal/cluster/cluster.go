@@ -296,9 +296,10 @@ type ClusterStatus struct {
 }
 
 type Cluster struct {
-	UID        string    `json:"uid,omitempty"`
-	Generation int64     `json:"generation,omitempty"`
-	ChangeTime time.Time `json:"changeTime,omitempty"`
+	UID             string    `json:"uid,omitempty"`
+	Generation      int64     `json:"generation,omitempty"`
+	ChangeTime      time.Time `json:"changeTime,omitempty"`
+	MaintenanceMode bool      `json:"maintenance_mode"`
 
 	Spec *ClusterSpec `json:"spec,omitempty"`
 

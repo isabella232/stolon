@@ -1849,6 +1849,10 @@ func (s *Sentinel) clusterSentinelCheck(pctx context.Context) {
 		return
 	}
 
+	if cd.Cluster != nil && cd.Cluster.MaintenanceMode {
+		log.Infow("cluster in maintenance mode - not doing anything")
+		return
+	}
 	if err = s.setSentinelInfo(pctx, 2*s.sleepInterval); err != nil {
 		log.Errorw("cannot update sentinel info", zap.Error(err))
 		return
