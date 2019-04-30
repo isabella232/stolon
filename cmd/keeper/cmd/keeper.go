@@ -44,6 +44,7 @@ import (
 	"github.com/sorintlab/stolon/internal/util"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -751,6 +752,10 @@ func (p *PostgresKeeper) Start(ctx context.Context) {
 	updatePGStateTimerCh := time.NewTimer(0).C
 	updateKeeperInfoTimerCh := time.NewTimer(0).C
 	for true {
+		// The sleepInterval can be updated during normal execution. Ensure we regularly
+		// refresh the metric to account for those changes.
+		sleepInterval.Set(float64(p.sleepInterval / time.Second))
+
 		select {
 		case <-ctx.Done():
 			log.Debugw("stopping stolon keeper")
@@ -943,6 +948,84 @@ func (p *PostgresKeeper) refreshReplicationSlots(cd *cluster.ClusterData, db *cl
 	return nil
 }
 
+var (
+	clusterdataLastValidUpdateSeconds = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_clusterdata_last_valid_update_seconds",
+			Help: "Last time we received a valid clusterdata from our store as seconds since unix epoch",
+		},
+	)
+	targetRoleGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_target_role",
+			Help: "Keeper last requested target role",
+		},
+		[]string{"role"},
+	)
+	localRoleGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_local_role",
+			Help: "Keeper current local role",
+		},
+		[]string{"role"},
+	)
+	needsReloadGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_needs_reload",
+			Help: "Set to 1 if Postgres requires reload",
+		},
+	)
+	needsRestartGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_needs_restart",
+			Help: "Set to 1 if Postgres requires restart",
+		},
+	)
+	lastSyncSuccessSeconds = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_last_sync_success_seconds",
+			Help: "Last time we successfully synced our keeper",
+		},
+	)
+	sleepInterval = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_sleep_interval",
+			Help: "Seconds to sleep between sync loops",
+		},
+	)
+	shutdownSeconds = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stolon_keeper_shutdown_seconds",
+			Help: "Shutdown time (received termination signal) since unix epoch in seconds",
+		},
+	)
+)
+
+// setRole is a helper that controls the targetRole metric by setting only one of the
+// possible roles to 1 at any one time.
+func setRole(rg *prometheus.GaugeVec, role *common.Role) {
+	for _, role := range common.Roles {
+		rg.WithLabelValues(string(role)).Set(0)
+	}
+
+	if role != nil {
+		rg.WithLabelValues(string(*role)).Set(1)
+	}
+}
+
+func init() {
+	prometheus.MustRegister(clusterdataLastValidUpdateSeconds)
+	prometheus.MustRegister(targetRoleGauge)
+	setRole(targetRoleGauge, nil)
+	prometheus.MustRegister(localRoleGauge)
+	setRole(localRoleGauge, nil)
+	prometheus.MustRegister(needsReloadGauge)
+	prometheus.MustRegister(needsRestartGauge)
+	prometheus.MustRegister(lastSyncSuccessSeconds)
+	prometheus.MustRegister(sleepInterval)
+	prometheus.MustRegister(shutdownSeconds)
+}
+
 func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 	e := p.e
 	pgm := p.pgm
@@ -966,6 +1049,12 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 		log.Errorw("clusterdata validation failed", zap.Error(err))
 		return
 	}
+
+	// Mark that the clusterdata we've received is valid. We'll use this metric to detect
+	// when our store is failing to serve a valid clusterdata, so it's important we only
+	// update the metric here.
+	clusterdataLastValidUpdateSeconds.SetToCurrentTime()
+
 	if cd.Cluster != nil {
 		p.sleepInterval = cd.Cluster.DefSpec().SleepInterval.Duration
 		p.requestTimeout = cd.Cluster.DefSpec().RequestTimeout.Duration
@@ -1391,6 +1480,10 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 	targetRole := db.Spec.Role
 	log.Debugw("target role", "targetRole", string(targetRole))
 
+	// Set metrics to power alerts about mismatched roles
+	setRole(localRoleGauge, &localRole)
+	setRole(targetRoleGauge, &targetRole)
+
 	switch targetRole {
 	case common.RoleMaster:
 		// We are the elected master
@@ -1594,23 +1687,31 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 	}
 
 	if needsReload {
+		needsReloadGauge.Set(1) // mark as reload needed
 		if err := pgm.Reload(); err != nil {
 			log.Errorw("failed to reload postgres instance", err)
+		} else {
+			needsReloadGauge.Set(0) // successful reload implies no longer required
 		}
+	}
 
+	{
 		clusterSpec := cd.Cluster.DefSpec()
 		automaticPgRestartEnabled := *clusterSpec.AutomaticPgRestart
 
-		if automaticPgRestartEnabled {
-			needsRestart, err := pgm.IsRestartRequired(changedParams)
-			if err != nil {
-				log.Errorw("Failed to checked if restart is required", err)
-			}
+		needsRestart, err := pgm.IsRestartRequired(changedParams)
+		if err != nil {
+			log.Errorw("Failed to checked if restart is required", err)
+		}
 
-			if needsRestart {
+		if needsRestart {
+			needsRestartGauge.Set(1) // mark as restart needed
+			if automaticPgRestartEnabled {
 				log.Infow("Restarting postgres")
 				if err := pgm.Restart(true); err != nil {
 					log.Errorw("Failed to restart postgres instance", err)
+				} else {
+					needsRestartGauge.Set(0) // successful restart implies no longer required
 				}
 			}
 		}
@@ -1624,6 +1725,10 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 		log.Errorw("failed to save db local state", zap.Error(err))
 		return
 	}
+
+	// We want to set this only if no error has occurred. We should be able to identify
+	// keeper issues by watching for this value becoming stale.
+	lastSyncSuccessSeconds.SetToCurrentTime()
 }
 
 func (p *PostgresKeeper) keeperLocalStateFilePath() string {
@@ -1770,6 +1875,7 @@ func (p *PostgresKeeper) generateHBA(cd *cluster.ClusterData, db *cluster.DB, on
 func sigHandler(sigs chan os.Signal, cancel context.CancelFunc) {
 	s := <-sigs
 	log.Debugw("got signal", "signal", s)
+	shutdownSeconds.SetToCurrentTime()
 	cancel()
 }
 
@@ -1815,6 +1921,8 @@ func keeper(c *cobra.Command, args []string) {
 	if err = cmd.CheckCommonConfig(&cfg.CommonConfig); err != nil {
 		log.Fatalf(err.Error())
 	}
+
+	cmd.SetMetrics(&cfg.CommonConfig)
 
 	if err = os.MkdirAll(cfg.dataDir, 0700); err != nil {
 		log.Fatalf("cannot create data dir: %v", err)
