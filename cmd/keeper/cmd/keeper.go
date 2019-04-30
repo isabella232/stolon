@@ -44,7 +44,6 @@ import (
 	"github.com/sorintlab/stolon/internal/util"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -950,84 +949,6 @@ func (p *PostgresKeeper) refreshReplicationSlots(cd *cluster.ClusterData, db *cl
 	}
 
 	return nil
-}
-
-var (
-	clusterdataLastValidUpdateSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_clusterdata_last_valid_update_seconds",
-			Help: "Last time we received a valid clusterdata from our store as seconds since unix epoch",
-		},
-	)
-	targetRoleGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_target_role",
-			Help: "Keeper last requested target role",
-		},
-		[]string{"role"},
-	)
-	localRoleGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_local_role",
-			Help: "Keeper current local role",
-		},
-		[]string{"role"},
-	)
-	needsReloadGauge = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_needs_reload",
-			Help: "Set to 1 if Postgres requires reload",
-		},
-	)
-	needsRestartGauge = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_needs_restart",
-			Help: "Set to 1 if Postgres requires restart",
-		},
-	)
-	lastSyncSuccessSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_last_sync_success_seconds",
-			Help: "Last time we successfully synced our keeper",
-		},
-	)
-	sleepInterval = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_sleep_interval",
-			Help: "Seconds to sleep between sync loops",
-		},
-	)
-	shutdownSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "stolon_keeper_shutdown_seconds",
-			Help: "Shutdown time (received termination signal) since unix epoch in seconds",
-		},
-	)
-)
-
-// setRole is a helper that controls the targetRole metric by setting only one of the
-// possible roles to 1 at any one time.
-func setRole(rg *prometheus.GaugeVec, role *common.Role) {
-	for _, role := range common.Roles {
-		rg.WithLabelValues(string(role)).Set(0)
-	}
-
-	if role != nil {
-		rg.WithLabelValues(string(*role)).Set(1)
-	}
-}
-
-func init() {
-	prometheus.MustRegister(clusterdataLastValidUpdateSeconds)
-	prometheus.MustRegister(targetRoleGauge)
-	setRole(targetRoleGauge, nil)
-	prometheus.MustRegister(localRoleGauge)
-	setRole(localRoleGauge, nil)
-	prometheus.MustRegister(needsReloadGauge)
-	prometheus.MustRegister(needsRestartGauge)
-	prometheus.MustRegister(lastSyncSuccessSeconds)
-	prometheus.MustRegister(sleepInterval)
-	prometheus.MustRegister(shutdownSeconds)
 }
 
 func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
