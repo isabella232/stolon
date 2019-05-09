@@ -1,0 +1,44 @@
+# View goreleaser docs for configuration settings
+# https://goreleaser.com
+
+---
+project_name: stolon
+
+release:
+  github:
+    owner: gocardless
+    name: stolon
+
+builds:
+  - binary: stolonctl
+    main: cmd/stolonctl/main.go
+    goos: &goos
+      - linux
+    goarch: &goarch
+      - amd64
+    ldflags: &ldflags >
+      -X cmd.Version={{.Version}}
+      -X cmd.Commit={{.Commit}}
+      -X cmd.Date={{.Date}}
+      -a
+      -installsuffix cgo
+    env: &env
+      - CGO_ENABLED=0
+  - binary: stolon-keeper
+    main: cmd/keeper/main.go
+    goos: *goos
+    goarch: *goarch
+    ldflags: *ldflags
+    env: *env
+  - binary: stolon-proxy
+    main: cmd/proxy/main.go
+    goos: *goos
+    goarch: *goarch
+    ldflags: *ldflags
+    env: *env
+  - binary: stolon-sentinel
+    main: cmd/sentinel/main.go
+    goos: *goos
+    goarch: *goarch
+    ldflags: *ldflags
+    env: *env

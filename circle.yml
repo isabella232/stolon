@@ -1,0 +1,33 @@
+---
+version: 2
+
+jobs:
+  release:
+    working_directory: /go/src/github.com/sorintlab/stolon
+    docker:
+      - image: golang:1.12
+    steps:
+      - checkout
+      - run:
+          name: Release
+          command: |
+            CURRENT_VERSION="v$(cat VERSION)"
+
+            if [[ $(git tag -l "${CURRENT_VERSION}") == "${CURRENT_VERSION}" ]]; then
+              echo "Version ${CURRENT_VERSION} is already released"
+              exit 0
+            fi
+
+            curl -L -o /tmp/goreleaser_Linux_x86_64.tar.gz https://github.com/goreleaser/goreleaser/releases/download/v0.106.0/goreleaser_Linux_x86_64.tar.gz
+            tar zxf /tmp/goreleaser_Linux_x86_64.tar.gz -C /tmp
+
+            git tag "${CURRENT_VERSION}"
+            git push --tags
+
+            /tmp/goreleaser --rm-dist
+
+workflows:
+  version: 2
+  build-integration:
+    jobs:
+      - release
