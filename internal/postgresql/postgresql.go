@@ -56,6 +56,7 @@ var log = slog.S()
 type Manager struct {
 	pgBinPath             string
 	dataDir               string
+	walDir                string
 	parameters            common.Parameters
 	recoveryParameters    common.Parameters
 	hba                   []string
@@ -95,9 +96,10 @@ func SetLogger(l *zap.SugaredLogger) {
 	log = l
 }
 
-func NewManager(pgBinPath string, dataDir string, localConnParams, replConnParams ConnParams, suAuthMethod, suUsername, suPassword, replAuthMethod, replUsername, replPassword string, requestTimeout time.Duration) *Manager {
+func NewManager(pgBinPath string, dataDir, walDir string, localConnParams, replConnParams ConnParams, suAuthMethod, suUsername, suPassword, replAuthMethod, replUsername, replPassword string, requestTimeout time.Duration) *Manager {
 	return &Manager{
 		pgBinPath:             pgBinPath,
+		walDir:                walDir,
 		dataDir:               filepath.Join(dataDir, "postgres"),
 		parameters:            make(common.Parameters),
 		recoveryParameters:    make(common.Parameters),
@@ -180,6 +182,13 @@ func (p *Manager) Init(initConfig *InitConfig) error {
 		cmd.Args = append(cmd.Args, "--pwfile", pwfile.Name())
 	}
 	log.Debugw("execing cmd", "cmd", cmd)
+
+	// initdb supports configuring a separate wal directory via symlinks. Normally this
+	// parameter might be part of the initConfig, but it will also be required whenever we
+	// fall-back to a pg_basebackup during a re-sync, which is why it's a Manager field.
+	if p.walDir != "" {
+		cmd.Args = append(cmd.Args, "--waldir", p.walDir)
+	}
 
 	if initConfig.Locale != "" {
 		cmd.Args = append(cmd.Args, "--locale", initConfig.Locale)
@@ -826,6 +835,9 @@ func (p *Manager) SyncFromFollowed(followedConnParams ConnParams, replSlot strin
 	args := []string{"-R", "-Xs", "-D", p.dataDir, "-d", followedConnString}
 	if replSlot != "" {
 		args = append(args, "--slot", replSlot)
+	}
+	if p.walDir != "" {
+		args = append(args, "--waldir", p.walDir)
 	}
 	cmd := exec.Command(name, args...)
 

@@ -93,6 +93,7 @@ type config struct {
 
 	uid                     string
 	dataDir                 string
+	walDir                  string
 	debug                   bool
 	pgListenAddress         string
 	pgAdvertiseAddress      string
@@ -124,6 +125,7 @@ func init() {
 	CmdKeeper.PersistentFlags().StringVar(&cfg.uid, "id", "", "keeper uid (must be unique in the cluster and can contain only lower-case letters, numbers and the underscore character). If not provided a random uid will be generated.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.uid, "uid", "", "keeper uid (must be unique in the cluster and can contain only lower-case letters, numbers and the underscore character). If not provided a random uid will be generated.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.dataDir, "data-dir", "", "data directory")
+	CmdKeeper.PersistentFlags().StringVar(&cfg.walDir, "wal-dir", "", "wal directory")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgListenAddress, "pg-listen-address", "", "postgresql instance listening address, local address used for the postgres instance. For all network interface, you can set the value to '*'.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgAdvertiseAddress, "pg-advertise-address", "", "postgresql instance address from outside. Use it to expose ip different than local ip with a NAT networking config")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgPort, "pg-port", "5432", "postgresql instance listening port")
@@ -404,6 +406,7 @@ type PostgresKeeper struct {
 	bootUUID string
 
 	dataDir             string
+	walDir              string
 	listenAddress       string
 	port                string
 	pgListenAddress     string
@@ -455,6 +458,7 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 		bootUUID: common.UUID(),
 
 		dataDir: dataDir,
+		walDir:  cfg.walDir,
 
 		pgListenAddress:     cfg.pgListenAddress,
 		pgAdvertiseAddress:  cfg.pgAdvertiseAddress,
@@ -742,7 +746,7 @@ func (p *PostgresKeeper) Start(ctx context.Context) {
 
 	// TODO(sgotti) reconfigure the various configurations options
 	// (RequestTimeout) after a changed cluster config
-	pgm := postgresql.NewManager(p.pgBinPath, p.dataDir, p.getLocalConnParams(), p.getLocalReplConnParams(), p.pgSUAuthMethod, p.pgSUUsername, p.pgSUPassword, p.pgReplAuthMethod, p.pgReplUsername, p.pgReplPassword, p.requestTimeout)
+	pgm := postgresql.NewManager(p.pgBinPath, p.dataDir, p.walDir, p.getLocalConnParams(), p.getLocalReplConnParams(), p.pgSUAuthMethod, p.pgSUUsername, p.pgSUPassword, p.pgReplAuthMethod, p.pgReplUsername, p.pgReplPassword, p.requestTimeout)
 	p.pgm = pgm
 
 	p.pgm.StopIfStarted(true)
