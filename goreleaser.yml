@@ -10,7 +10,7 @@ release:
     name: stolon
 
 builds:
-  - binary: stolonctl
+  - binary: bin/stolonctl
     main: cmd/stolonctl/main.go
     goos: &goos
       - linux
@@ -24,19 +24,19 @@ builds:
       -installsuffix cgo
     env: &env
       - CGO_ENABLED=0
-  - binary: stolon-keeper
+  - binary: bin/stolon-keeper
     main: cmd/keeper/main.go
     goos: *goos
     goarch: *goarch
     ldflags: *ldflags
     env: *env
-  - binary: stolon-proxy
+  - binary: bin/stolon-proxy
     main: cmd/proxy/main.go
     goos: *goos
     goarch: *goarch
     ldflags: *ldflags
     env: *env
-  - binary: stolon-sentinel
+  - binary: bin/stolon-sentinel
     main: cmd/sentinel/main.go
     goos: *goos
     goarch: *goarch
