@@ -15,6 +15,7 @@ stolon-keeper [flags]
 ```
       --cluster-name string             cluster name
       --data-dir string                 data directory
+      --wal-dir string                  data directory
   -h, --help                            help for stolon-keeper
       --kube-resource-kind string       the k8s resource kind to be used to store stolon clusterdata and do sentinel leader election (only "configmap" is currently supported)
       --log-color                       enable color in log output (default if attached to a terminal)
