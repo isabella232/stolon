@@ -208,7 +208,7 @@ func (p *Manager) Init(initConfig *InitConfig) error {
 	}
 	// remove the dataDir, so we don't end with an half initialized database
 	if err != nil {
-		os.RemoveAll(p.dataDir)
+		p.RemoveAll()
 		return err
 	}
 	return nil
@@ -237,7 +237,7 @@ func (p *Manager) Restore(command string) error {
 	// On every error remove the dataDir, so we don't end with an half initialized database
 out:
 	if err != nil {
-		os.RemoveAll(p.dataDir)
+		p.RemoveAll()
 		return err
 	}
 	return nil
@@ -853,7 +853,7 @@ func (p *Manager) SyncFromFollowed(followedConnParams ConnParams, replSlot strin
 	return nil
 }
 
-func (p *Manager) RemoveAll() error {
+func (p *Manager) RemoveAllIfInitialized() error {
 	initialized, err := p.IsInitialized()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve instance state: %v", err)
@@ -869,6 +869,17 @@ func (p *Manager) RemoveAll() error {
 	if started {
 		return fmt.Errorf("cannot remove postregsql database. Instance is active")
 	}
+
+	return p.RemoveAll()
+}
+
+// RemoveAll entirely cleans up the data directory, including any wal directory if that
+// exists outside of the data directory.
+func (p *Manager) RemoveAll() error {
+	if p.walDir != "" {
+		os.RemoveAll(p.walDir)
+	}
+
 	return os.RemoveAll(p.dataDir)
 }
 

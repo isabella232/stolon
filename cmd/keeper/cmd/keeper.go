@@ -830,7 +830,7 @@ func (p *PostgresKeeper) resync(db, followedDB *cluster.DB, tryPgrewind bool) er
 		replSlot = common.StolonName(db.UID)
 	}
 
-	if err := pgm.RemoveAll(); err != nil {
+	if err := pgm.RemoveAllIfInitialized(); err != nil {
 		return fmt.Errorf("failed to remove the postgres data dir: %v", err)
 	}
 	if slog.IsDebug() {
@@ -1023,7 +1023,7 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 		}
 
 		// Clean up cluster db datadir
-		if err = pgm.RemoveAll(); err != nil {
+		if err = pgm.RemoveAllIfInitialized(); err != nil {
 			log.Errorw("failed to remove the postgres data dir", zap.Error(err))
 			return
 		}
@@ -1082,7 +1082,7 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 				log.Errorw("failed to stop pg instance", zap.Error(err))
 				return
 			}
-			if err = pgm.RemoveAll(); err != nil {
+			if err = pgm.RemoveAllIfInitialized(); err != nil {
 				log.Errorw("failed to remove the postgres data dir", zap.Error(err))
 				return
 			}
@@ -1144,7 +1144,7 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 				log.Errorw("failed to stop pg instance", zap.Error(err))
 				return
 			}
-			if err = pgm.RemoveAll(); err != nil {
+			if err = pgm.RemoveAllIfInitialized(); err != nil {
 				log.Errorw("failed to remove the postgres data dir", zap.Error(err))
 				return
 			}
