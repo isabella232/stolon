@@ -218,7 +218,7 @@ func (p *Manager) Restore(command string) error {
 	var err error
 	var cmd *exec.Cmd
 
-	command = expand(command, p.dataDir)
+	command = expandRecoveryCommand(command, p.dataDir, p.walDir)
 
 	if err = os.MkdirAll(p.dataDir, 0700); err != nil {
 		err = fmt.Errorf("cannot create data dir: %v", err)
