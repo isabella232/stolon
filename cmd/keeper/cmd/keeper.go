@@ -147,7 +147,6 @@ func init() {
 
 var managedPGParameters = []string{
 	"unix_socket_directories",
-	"wal_keep_segments",
 	"hot_standby",
 	"listen_addresses",
 	"port",
@@ -216,7 +215,6 @@ func (p *PostgresKeeper) mandatoryPGParameters(db *cluster.DB) common.Parameters
 	return common.Parameters{
 		"unix_socket_directories": common.PgUnixSocketDirectories,
 		"wal_level":               p.walLevel(db),
-		"wal_keep_segments":       "8",
 		"hot_standby":             "on",
 	}
 }
