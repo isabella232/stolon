@@ -32,4 +32,4 @@ workflows:
     jobs:
       - release:
           filters:
-            branches: {only: master}
+            branches: {only: gocardless}
