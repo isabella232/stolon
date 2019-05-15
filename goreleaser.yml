@@ -17,9 +17,9 @@ builds:
     goarch: &goarch
       - amd64
     ldflags: &ldflags >
-      -X cmd.Version={{.Version}}
-      -X cmd.Commit={{.Commit}}
-      -X cmd.Date={{.Date}}
+      -X github.com/sorintlab/stolon/cmd.Version={{.Version}}
+      -X github.com/sorintlab/stolon/cmd.Commit={{.Commit}}
+      -X github.com/sorintlab/stolon/cmd.Date={{.Date}}
       -a
       -installsuffix cgo
     env: &env
