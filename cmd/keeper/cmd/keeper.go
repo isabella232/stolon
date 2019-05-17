@@ -813,7 +813,8 @@ func (p *PostgresKeeper) resync(db, followedDB *cluster.DB, tryPgrewind bool) er
 	if tryPgrewind && p.usePgrewind(db) {
 		connParams := p.getSUConnParams(db, followedDB)
 		log.Infow("syncing using pg_rewind", "followedDB", followedDB.UID, "keeper", followedDB.Spec.KeeperUID)
-		if err := pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword); err != nil {
+		// TODO: Make the forceCheckpoint parameter use cluster specification
+		if err := pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword, true); err != nil {
 			// log pg_rewind error and fallback to pg_basebackup
 			log.Errorw("error syncing with pg_rewind", zap.Error(err))
 		} else {
