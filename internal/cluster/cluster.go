@@ -66,6 +66,8 @@ const (
 	DefaultMaxSynchronousStandbys    uint16           = 1
 	DefaultAdditionalWalSenders                       = 5
 	DefaultUsePgrewind                                = false
+	DefaultPgrewindInterval                           = 0 * time.Second
+	DefaultPgrewindTimeout                            = 0 * time.Second
 	DefaultMergePGParameter                           = true
 	DefaultRole                      ClusterRole      = ClusterRoleMaster
 	DefaultSUReplAccess              SUReplAccessMode = SUReplAccessAll
@@ -261,6 +263,10 @@ type ClusterSpec struct {
 	AdditionalMasterReplicationSlots []string `json:"additionalMasterReplicationSlots"`
 	// Whether to use pg_rewind
 	UsePgrewind *bool `json:"usePgrewind,omitempty"`
+	// Interval to wait until next pg_rewind try
+	PgrewindInterval *Duration `json:"PgrewindInterval,omitempty"`
+	// Time after which we stop trying to pg_rewind
+	PgrewindTimeout *Duration `json:"PgrewindTimeout,omitempty"`
 	// InitMode defines the cluster initialization mode. Current modes are: new, existing, pitr
 	InitMode *ClusterInitMode `json:"initMode,omitempty"`
 	// Whether to merge pgParameters of the initialized db cluster, useful
@@ -378,6 +384,12 @@ func (os *ClusterSpec) WithDefaults() *ClusterSpec {
 	}
 	if s.UsePgrewind == nil {
 		s.UsePgrewind = BoolP(DefaultUsePgrewind)
+	}
+	if s.PgrewindInterval == nil {
+		s.PgrewindInterval = &Duration{Duration: DefaultPgrewindInterval}
+	}
+	if s.PgrewindTimeout == nil {
+		s.PgrewindTimeout = &Duration{Duration: DefaultPgrewindTimeout}
 	}
 	if s.MinSynchronousStandbys == nil {
 		s.MinSynchronousStandbys = Uint16P(DefaultMinSynchronousStandbys)
@@ -607,6 +619,10 @@ type DBSpec struct {
 	SynchronousReplication bool `json:"synchronousReplication,omitempty"`
 	// Whether to use pg_rewind
 	UsePgrewind bool `json:"usePgrewind,omitempty"`
+	// Interval to wait until next pg_rewind try
+	PgrewindInterval Duration `json:"PgrewindInterval,omitempty"`
+	// Time after which we stop trying to pg_rewind
+	PgrewindTimeout Duration `json:"PgrewindTimeout,omitempty"`
 	// AdditionalWalSenders defines the number of additional wal_senders in
 	// addition to the ones internally defined by stolon
 	AdditionalWalSenders uint16 `json:"additionalWalSenders"`
