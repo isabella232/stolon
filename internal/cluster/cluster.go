@@ -264,9 +264,9 @@ type ClusterSpec struct {
 	// Whether to use pg_rewind
 	UsePgrewind *bool `json:"usePgrewind,omitempty"`
 	// Interval to wait until next pg_rewind try
-	PgrewindInterval *Duration `json:"PgrewindInterval,omitempty"`
+	PgrewindInterval *Duration `json:"pgrewindInterval,omitempty"`
 	// Time after which we stop trying to pg_rewind
-	PgrewindTimeout *Duration `json:"PgrewindTimeout,omitempty"`
+	PgrewindTimeout *Duration `json:"pgrewindTimeout,omitempty"`
 	// InitMode defines the cluster initialization mode. Current modes are: new, existing, pitr
 	InitMode *ClusterInitMode `json:"initMode,omitempty"`
 	// Whether to merge pgParameters of the initialized db cluster, useful
@@ -620,9 +620,9 @@ type DBSpec struct {
 	// Whether to use pg_rewind
 	UsePgrewind bool `json:"usePgrewind,omitempty"`
 	// Interval to wait until next pg_rewind try
-	PgrewindInterval Duration `json:"PgrewindInterval,omitempty"`
+	PgrewindInterval Duration `json:"pgrewindInterval,omitempty"`
 	// Time after which we stop trying to pg_rewind
-	PgrewindTimeout Duration `json:"PgrewindTimeout,omitempty"`
+	PgrewindTimeout Duration `json:"pgrewindTimeout,omitempty"`
 	// AdditionalWalSenders defines the number of additional wal_senders in
 	// addition to the ones internally defined by stolon
 	AdditionalWalSenders uint16 `json:"additionalWalSenders"`

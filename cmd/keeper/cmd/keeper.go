@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -809,20 +810,53 @@ func (p *PostgresKeeper) resync(db, followedDB *cluster.DB, tryPgrewind bool) er
 	// postgresql version is > 9.5 since someone can also use an externally
 	// installed pg_rewind for postgres 9.4. If a pg_rewind executable
 	// doesn't exists pgm.SyncFromFollowedPGRewind will return an error and
-	// fallback to pg_basebackup
+	// fallback to pg_basebackup. If there is no pg_rewind timeout or
+	// interval set, we will only try pg_rewind once and fallback to
+	// pg_basebackup straight away. Otherwise we will keep retrying until
+	// pg_rewind succeeds or we reach the timeout (and then we will
+	// fallback to pg_basebackup).
 	if tryPgrewind && p.usePgrewind(db) {
-		connParams := p.getSUConnParams(db, followedDB)
-		log.Infow("syncing using pg_rewind", "followedDB", followedDB.UID, "keeper", followedDB.Spec.KeeperUID)
-		// TODO: Make the forceCheckpoint parameter use cluster specification
-		if err := pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword, true); err != nil {
-			// log pg_rewind error and fallback to pg_basebackup
-			log.Errorw("error syncing with pg_rewind", zap.Error(err))
-		} else {
-			pgm.SetRecoveryParameters(p.createRecoveryParameters(true, standbySettings, nil, nil))
+		var err error
+		timeout := db.Spec.PgrewindTimeout.Duration
+		interval := db.Spec.PgrewindInterval.Duration
+
+		pgrewind := func() error {
+			connParams := p.getSUConnParams(db, followedDB)
+			log.Infow("syncing using pg_rewind", "followedDB", followedDB.UID, "keeper", followedDB.Spec.KeeperUID)
+			if err = pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword, true); err != nil {
+				log.Errorw("error syncing with pg_rewind", zap.Error(err))
+				pgm.SetRecoveryParameters(p.createRecoveryParameters(true, standbySettings, nil, nil))
+			}
+			return err
+		}
+
+		if err = pgrewind(); err == nil {
 			return nil
+		}
+
+		// Retry pg_rewind at an interval with jitter until it succeeds or
+		// we timeout retrying
+		if timeout != 0 || interval != 0 {
+			timeoutAfter := time.After(timeout)
+			jitter := time.Duration(rand.Int63n(int64(interval)) / 4)
+			intervalTick := time.Tick(interval + jitter)
+
+		Rewind:
+			for true {
+				select {
+				case <-timeoutAfter:
+					log.Errorw("timed out while trying to run pg_rewind")
+					break Rewind
+				case <-intervalTick:
+					if err = pgrewind(); err == nil {
+						return nil
+					}
+				}
+			}
 		}
 	}
 
+	// Fallback to pg_basebackup as pg_rewind failed
 	maj, min, err := p.pgm.BinaryVersion()
 	if err != nil {
 		// in case we fail to parse the binary version then log it and just don't use replSlot
