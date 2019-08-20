@@ -68,6 +68,7 @@ const (
 	DefaultUsePgrewind                                = false
 	DefaultPgrewindInterval                           = 0 * time.Second
 	DefaultPgrewindTimeout                            = 0 * time.Second
+	DefaultPgrewindCheckpoint                         = false
 	DefaultMergePGParameter                           = true
 	DefaultRole                      ClusterRole      = ClusterRoleMaster
 	DefaultSUReplAccess              SUReplAccessMode = SUReplAccessAll
@@ -267,6 +268,8 @@ type ClusterSpec struct {
 	PgrewindInterval *Duration `json:"pgrewindInterval,omitempty"`
 	// Time after which we stop trying to pg_rewind
 	PgrewindTimeout *Duration `json:"pgrewindTimeout,omitempty"`
+	// Checkpoint before performing pg_rewind
+	PgrewindCheckpoint *bool `json:"pgrewindCheckpoint,omitempty"`
 	// InitMode defines the cluster initialization mode. Current modes are: new, existing, pitr
 	InitMode *ClusterInitMode `json:"initMode,omitempty"`
 	// Whether to merge pgParameters of the initialized db cluster, useful
@@ -390,6 +393,9 @@ func (os *ClusterSpec) WithDefaults() *ClusterSpec {
 	}
 	if s.PgrewindTimeout == nil {
 		s.PgrewindTimeout = &Duration{Duration: DefaultPgrewindTimeout}
+	}
+	if s.PgrewindCheckpoint == nil {
+		s.PgrewindCheckpoint = BoolP(DefaultPgrewindCheckpoint)
 	}
 	if s.MinSynchronousStandbys == nil {
 		s.MinSynchronousStandbys = Uint16P(DefaultMinSynchronousStandbys)
@@ -623,6 +629,8 @@ type DBSpec struct {
 	PgrewindInterval Duration `json:"pgrewindInterval,omitempty"`
 	// Time after which we stop trying to pg_rewind
 	PgrewindTimeout Duration `json:"pgrewindTimeout,omitempty"`
+	// Checkpoint before performing pg_rewind
+	PgrewindCheckpoint bool `json:"pgrewindCheckpoint,omitempty"`
 	// AdditionalWalSenders defines the number of additional wal_senders in
 	// addition to the ones internally defined by stolon
 	AdditionalWalSenders uint16 `json:"additionalWalSenders"`

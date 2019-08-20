@@ -819,11 +819,12 @@ func (p *PostgresKeeper) resync(db, followedDB *cluster.DB, tryPgrewind bool) er
 		var err error
 		timeout := db.Spec.PgrewindTimeout.Duration
 		interval := db.Spec.PgrewindInterval.Duration
+		checkpoint := db.Spec.PgrewindCheckpoint
 
 		pgrewind := func() error {
 			connParams := p.getSUConnParams(db, followedDB)
 			log.Infow("syncing using pg_rewind", "followedDB", followedDB.UID, "keeper", followedDB.Spec.KeeperUID)
-			if err = pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword, true); err != nil {
+			if err = pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword, checkpoint); err != nil {
 				log.Errorw("error syncing with pg_rewind", zap.Error(err))
 				pgm.SetRecoveryParameters(p.createRecoveryParameters(true, standbySettings, nil, nil))
 			}
