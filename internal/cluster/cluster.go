@@ -390,9 +390,13 @@ func (os *ClusterSpec) WithDefaults() *ClusterSpec {
 	}
 	if s.PgrewindInterval == nil {
 		s.PgrewindInterval = &Duration{Duration: DefaultPgrewindInterval}
+	} else {
+		s.PgrewindInterval = &Duration{Duration: 10 * time.Second}
 	}
 	if s.PgrewindTimeout == nil {
 		s.PgrewindTimeout = &Duration{Duration: DefaultPgrewindTimeout}
+	} else {
+		s.PgrewindTimeout = &Duration{Duration: 1 * time.Minute}
 	}
 	if s.PgrewindCheckpoint == nil {
 		s.PgrewindCheckpoint = BoolP(DefaultPgrewindCheckpoint)
