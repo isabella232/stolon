@@ -1475,44 +1475,58 @@ func (s *Sentinel) updateCluster(cd *cluster.ClusterData, pis cluster.ProxiesInf
 						log.Infow("added new standby db", "db", db.UID, "keeper", db.Spec.KeeperUID)
 					}
 				}
-
-				// Reconfigure all standbys as followers of the current master
-				for _, db := range newcd.DBs {
-					if s.dbType(newcd, db.UID) != dbTypeStandby {
-						continue
-					}
-
-					db.Spec.Role = common.RoleStandby
-					// Remove followers
-					db.Spec.Followers = []string{}
-					db.Spec.FollowConfig = &cluster.FollowConfig{Type: cluster.FollowTypeInternal, DBUID: wantedMasterDBUID}
-
-					db.Spec.SynchronousReplication = false
-					db.Spec.SynchronousStandbys = nil
-					db.Spec.ExternalSynchronousStandbys = nil
-				}
 			}
 		}
 
-		// Update followers for master DB
-		// Always do this since, in future, keepers and related db could be
-		// removed (currently only dead keepers without an assigned db are
-		// removed)
-		masterDB := newcd.DBs[curMasterDBUID]
-		masterDB.Spec.Followers = []string{}
+		// Reset followers for all databases
 		for _, db := range newcd.DBs {
-			if masterDB.UID == db.UID {
+			db.Spec.Followers = []string{}
+		}
+
+		// Build a list of standby follow targets. If we have synchronous standbys then prefer
+		// them, otherwise fallback to the master.
+		masterDB := newcd.DBs[curMasterDBUID]
+		standbyFollowDBUIDs := masterDB.Spec.SynchronousStandbys
+		if len(standbyFollowDBUIDs) == 0 {
+			standbyFollowDBUIDs = []string{wantedMasterDBUID}
+		}
+
+		// Assign follower/followed relationships for each database. Follow targets are
+		// selected from a candidate list populated with either the master or synchronous
+		// standbys depending on whether any are available.
+		for _, db := range newcd.DBs {
+			if s.dbType(newcd, db.UID) != dbTypeStandby {
 				continue
 			}
-			fc := db.Spec.FollowConfig
-			if fc != nil {
-				if fc.Type == cluster.FollowTypeInternal && fc.DBUID == wantedMasterDBUID {
-					masterDB.Spec.Followers = append(masterDB.Spec.Followers, db.UID)
-				}
+
+			db.Spec.Role = common.RoleStandby
+			db.Spec.SynchronousReplication = false
+			db.Spec.SynchronousStandbys = nil
+			db.Spec.ExternalSynchronousStandbys = nil
+
+			var followTarget *cluster.DB
+
+			// If we're a synchronous standby then we follow the master
+			if util.StringInSlice(masterDB.Spec.SynchronousStandbys, db.UID) {
+				followTarget = masterDB
+			} else {
+				// Otherwise we can follow any of our standbyFollowDBUIDs. Pick from the front of
+				// the slice then push to the back to ensure we fairly distribute replication load
+				// amongst the available synchronous standbys.
+				chosen, remaining := standbyFollowDBUIDs[0], standbyFollowDBUIDs[1:]
+				followTarget = newcd.DBs[chosen]
+				standbyFollowDBUIDs = append(remaining, chosen)
 			}
+
+			// Assign the relationship in both directions
+			db.Spec.FollowConfig = &cluster.FollowConfig{Type: cluster.FollowTypeInternal, DBUID: followTarget.UID}
+			followTarget.Spec.Followers = append(followTarget.Spec.Followers, db.UID)
 		}
+
 		// Sort followers so the slice won't be considered changed due to different order of the same entries.
-		sort.Strings(masterDB.Spec.Followers)
+		for _, db := range newcd.DBs {
+			sort.Strings(db.Spec.Followers)
+		}
 
 	default:
 		return nil, fmt.Errorf("unknown cluster phase %s", cd.Cluster.Status.Phase)
