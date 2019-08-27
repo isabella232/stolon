@@ -57,6 +57,11 @@ var CmdKeeper = &cobra.Command{
 	Version: cmd.Version,
 }
 
+const (
+	maxPostgresTimelinesHistory = 2
+	minWalKeepSegments          = 8
+)
+
 type KeeperLocalState struct {
 	UID        string
 	ClusterUID string
@@ -211,10 +216,27 @@ func (p *PostgresKeeper) walLevel(db *cluster.DB) string {
 	return walLevel
 }
 
+func (p *PostgresKeeper) walKeepSegments(db *cluster.DB) int {
+	walKeepSegments := minWalKeepSegments
+	if db.Spec.PGParameters != nil {
+		if v, ok := db.Spec.PGParameters["wal_keep_segments"]; ok {
+			// ignore wrong wal_keep_segments values
+			if configuredWalKeepSegments, err := strconv.Atoi(v); err == nil {
+				if configuredWalKeepSegments > walKeepSegments {
+					walKeepSegments = configuredWalKeepSegments
+				}
+			}
+		}
+	}
+
+	return walKeepSegments
+}
+
 func (p *PostgresKeeper) mandatoryPGParameters(db *cluster.DB) common.Parameters {
 	return common.Parameters{
 		"unix_socket_directories": common.PgUnixSocketDirectories,
 		"wal_level":               p.walLevel(db),
+		"wal_keep_segments":       fmt.Sprintf("%d", p.walKeepSegments(db)),
 		"hot_standby":             "on",
 	}
 }
@@ -560,7 +582,6 @@ func (p *PostgresKeeper) updatePGState(pctx context.Context) {
 	pgState, err := p.GetPGState(pctx)
 	if err != nil {
 		log.Errorw("failed to get pg state", zap.Error(err))
-		return
 	}
 	p.lastPGState = pgState
 }
@@ -643,7 +664,7 @@ func (p *PostgresKeeper) GetPGState(pctx context.Context) (*cluster.PostgresStat
 
 	initialized, err := p.pgm.IsInitialized()
 	if err != nil {
-		return nil, err
+		return pgState, err
 	}
 	if initialized {
 		pgParameters, err := p.pgm.GetConfigFilePGParameters()
@@ -678,27 +699,12 @@ func (p *PostgresKeeper) GetPGState(pctx context.Context) (*cluster.PostgresStat
 		pgState.TimelineID = sd.TimelineID
 		pgState.XLogPos = sd.XLogPos
 
-		// if timeline <= 1 then no timeline history file exists.
-		pgState.TimelinesHistory = cluster.PostgresTimelinesHistory{}
-		if pgState.TimelineID > 1 {
-			var tlsh []*postgresql.TimelineHistory
-			tlsh, err = p.pgm.GetTimelinesHistory(pgState.TimelineID)
-			if err != nil {
-				log.Errorw("error getting timeline history", zap.Error(err))
-				return pgState, nil
-			}
-			ctlsh := cluster.PostgresTimelinesHistory{}
-
-			for _, tlh := range tlsh {
-				ctlh := &cluster.PostgresTimelineHistory{
-					TimelineID:  tlh.TimelineID,
-					SwitchPoint: tlh.SwitchPoint,
-					Reason:      tlh.Reason,
-				}
-				ctlsh = append(ctlsh, ctlh)
-			}
-			pgState.TimelinesHistory = ctlsh
+		ctlsh, err := getTimeLinesHistory(pgState, p.pgm, maxPostgresTimelinesHistory)
+		if err != nil {
+			log.Errorw("error getting timeline history", zap.Error(err))
+			return pgState, nil
 		}
+		pgState.TimelinesHistory = ctlsh
 
 		ow, err := p.pgm.OlderWalFile()
 		if err != nil {
@@ -711,6 +717,31 @@ func (p *PostgresKeeper) GetPGState(pctx context.Context) (*cluster.PostgresStat
 	}
 
 	return pgState, nil
+}
+
+func getTimeLinesHistory(pgState *cluster.PostgresState, pgm postgresql.PGManager, maxPostgresTimelinesHistory int) (cluster.PostgresTimelinesHistory, error) {
+	ctlsh := cluster.PostgresTimelinesHistory{}
+	// if timeline <= 1 then no timeline history file exists.
+	if pgState.TimelineID > 1 {
+		var tlsh []*postgresql.TimelineHistory
+		tlsh, err := pgm.GetTimelinesHistory(pgState.TimelineID)
+		if err != nil {
+			log.Errorw("error getting timeline history", zap.Error(err))
+			return ctlsh, err
+		}
+		if len(tlsh) > maxPostgresTimelinesHistory {
+			tlsh = tlsh[len(tlsh)-maxPostgresTimelinesHistory:]
+		}
+		for _, tlh := range tlsh {
+			ctlh := &cluster.PostgresTimelineHistory{
+				TimelineID:  tlh.TimelineID,
+				SwitchPoint: tlh.SwitchPoint,
+				Reason:      tlh.Reason,
+			}
+			ctlsh = append(ctlsh, ctlh)
+		}
+	}
+	return ctlsh, nil
 }
 
 func (p *PostgresKeeper) getLastPGState() *cluster.PostgresState {
@@ -1625,15 +1656,15 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 
 		needsRestart, err := pgm.IsRestartRequired(changedParams)
 		if err != nil {
-			log.Errorw("Failed to checked if restart is required", err)
+			log.Errorw("failed to check if restart is required", zap.Error(err))
 		}
 
 		if needsRestart {
 			needsRestartGauge.Set(1) // mark as restart needed
 			if automaticPgRestartEnabled {
-				log.Infow("Restarting postgres")
+				log.Infow("restarting postgres")
 				if err := pgm.Restart(true); err != nil {
-					log.Errorw("Failed to restart postgres instance", err)
+					log.Errorw("failed to restart postgres instance", zap.Error(err))
 				} else {
 					needsRestartGauge.Set(0) // successful restart implies no longer required
 				}
@@ -1846,7 +1877,7 @@ func keeper(c *cobra.Command, args []string) {
 		log.Fatalf(err.Error())
 	}
 
-	cmd.SetMetrics(&cfg.CommonConfig)
+	cmd.SetMetrics(&cfg.CommonConfig, "keeper")
 
 	if err = os.MkdirAll(cfg.dataDir, 0700); err != nil {
 		log.Fatalf("cannot create data dir: %v", err)

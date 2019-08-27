@@ -98,6 +98,12 @@ func (s *Sentinel) electionLoop(ctx context.Context) {
 			case err := <-errCh:
 				if err != nil {
 					log.Errorw("election loop error", zap.Error(err))
+
+					// It's important to Stop() any on-going elections, as most stores will block
+					// until all previous elections have completed. If we continue without stopping,
+					// we run the risk of preventing any subsequent elections from successfully
+					// electing a leader.
+					s.election.Stop()
 				}
 				goto end
 			case <-ctx.Done():
@@ -327,7 +333,6 @@ func (s *Sentinel) updateKeepersStatus(cd *cluster.ClusterData, keepersInfo clus
 func (s *Sentinel) activeProxiesInfos(proxiesInfo cluster.ProxiesInfo) cluster.ProxiesInfo {
 	pihs := s.proxyInfoHistories.DeepCopy()
 
-	tmpPihs := pihs.DeepCopy()
 	// remove missing proxyInfos from the history
 	for proxyUID, _ := range pihs {
 		if _, ok := proxiesInfo[proxyUID]; !ok {
@@ -335,7 +340,6 @@ func (s *Sentinel) activeProxiesInfos(proxiesInfo cluster.ProxiesInfo) cluster.P
 		}
 
 	}
-	pihs = tmpPihs
 
 	activeProxiesInfo := proxiesInfo.DeepCopy()
 	// keep only updated proxies info
@@ -1977,7 +1981,7 @@ func sentinel(c *cobra.Command, args []string) {
 		log.Fatalf(err.Error())
 	}
 
-	cmd.SetMetrics(&cfg.CommonConfig)
+	cmd.SetMetrics(&cfg.CommonConfig, "sentinel")
 
 	uid := common.UID()
 	log.Infow("sentinel uid", "uid", uid)

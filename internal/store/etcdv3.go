@@ -195,32 +195,16 @@ func (e *etcdv3Election) campaign() {
 	defer close(e.electedCh)
 	defer close(e.errCh)
 
-	// Every resource in this campaign must be cleaned up as soon as we return. Failure to
-	// clean-up our session will cause all sentinels to hang.
-	ctx, cancel := context.WithCancel(e.ctx)
-	defer cancel()
-
 	for {
 		e.electedCh <- false
-		s, err := concurrency.NewSession(e.c, concurrency.WithTTL(int(e.ttl.Seconds())), concurrency.WithContext(ctx))
+		s, err := concurrency.NewSession(e.c, concurrency.WithTTL(int(e.ttl.Seconds())), concurrency.WithContext(e.ctx))
 		if err != nil {
-			e.running = false
 			e.errCh <- err
 			return
 		}
 
 		etcdElection := concurrency.NewElection(s, e.path)
-
-		// Campaign has the potential to block until the given ctx terminates. The design of
-		// leadership election means we'll wait until all existing keys with a creation prior
-		// to the current election term to be deleted. If other sentinels incorrectly persist
-		// their key leases then we could be here forever.
-		//
-		// For this reason, be extremely careful to terminate the previous election session.
-		// Failure to do so with lock-up every sentinel in the cluster with potentially
-		// terrible consequences.
-		if err = etcdElection.Campaign(ctx, e.candidateUID); err != nil {
-			e.running = false
+		if err = etcdElection.Campaign(e.ctx, e.candidateUID); err != nil {
 			e.errCh <- err
 			return
 		}
@@ -228,12 +212,9 @@ func (e *etcdv3Election) campaign() {
 		e.electedCh <- true
 
 		select {
-		case <-ctx.Done():
-			e.running = false
-			etcdElection.Resign(context.TODO())
+		case <-e.ctx.Done():
 			return
 		case <-s.Done():
-			etcdElection.Resign(context.TODO())
 			e.electedCh <- false
 		}
 	}
