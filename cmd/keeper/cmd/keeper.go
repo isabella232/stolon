@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -842,15 +843,33 @@ func (p *PostgresKeeper) resync(db, followedDB *cluster.DB, tryPgrewind bool) er
 	// doesn't exists pgm.SyncFromFollowedPGRewind will return an error and
 	// fallback to pg_basebackup
 	if tryPgrewind && p.usePgrewind(db) {
-		connParams := p.getSUConnParams(db, followedDB)
-		log.Infow("syncing using pg_rewind", "followedDB", followedDB.UID, "keeper", followedDB.Spec.KeeperUID)
-		// TODO: Make the forceCheckpoint parameter use cluster specification
-		if err := pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword, true); err != nil {
-			// log pg_rewind error and fallback to pg_basebackup
-			log.Errorw("error syncing with pg_rewind", zap.Error(err))
-		} else {
-			pgm.SetRecoveryParameters(p.createRecoveryParameters(true, standbySettings, nil, nil))
-			return nil
+		startedPgrewind := time.Now()
+	pgrewindRetries:
+		for {
+			connParams := p.getSUConnParams(db, followedDB)
+			log.Infow("syncing using pg_rewind", "followedDB", followedDB.UID, "keeper", followedDB.Spec.KeeperUID)
+			// TODO: Remove the final true once this is merged:
+			// https://github.com/sorintlab/stolon/pull/644 is
+			if err := pgm.SyncFromFollowedPGRewind(connParams, p.pgSUPassword, true); err != nil {
+				// log pg_rewind error and fallback to pg_basebackup
+				log.Errorw("error syncing with pg_rewind", zap.Error(err))
+
+				// TODO: This is a GoCardless modification that enables retrying pg_rewind for
+				// up-to 5m, to allow the follower to boot before we attempt to rewind. This
+				// avoids falling back on pg_basebackup unnecessarily, and will eventually require
+				// upstreaming in a more mature form.
+				if time.Since(startedPgrewind) > 5*time.Minute {
+					break pgrewindRetries
+				}
+
+				// Retry the pg_rewind 5-10s after our last attempt
+				log.Infow("sleeping before retrying pg_rewind")
+				time.Sleep((5 * time.Second) + time.Duration(rand.Int63n(int64(5*time.Second))))
+				continue pgrewindRetries
+			} else {
+				pgm.SetRecoveryParameters(p.createRecoveryParameters(true, standbySettings, nil, nil))
+				return nil
+			}
 		}
 	}
 
