@@ -581,10 +581,7 @@ func NewKeeperFromKeeperInfo(ki *KeeperInfo) *Keeper {
 		UID:        ki.UID,
 		Generation: InitialGeneration,
 		ChangeTime: time.Time{},
-		Spec: &KeeperSpec{
-			NeverMaster:             ki.NeverMaster,
-			NeverSynchronousReplica: ki.NeverSynchronousReplica,
-		},
+		Spec:       &KeeperSpec{},
 		Status: KeeperStatus{
 			Healthy:         true,
 			LastHealthyTime: time.Now(),
