@@ -549,7 +549,10 @@ func NewCluster(uid string, cs *ClusterSpec) *Cluster {
 	return c
 }
 
-type KeeperSpec struct{}
+type KeeperSpec struct {
+	NeverMaster             bool `json:"neverMaster,omitempty"`
+	NeverSynchronousReplica bool `json:"neverSynchronousReplica,omitempty"`
+}
 
 type KeeperStatus struct {
 	Healthy         bool      `json:"healthy,omitempty"`
@@ -578,7 +581,10 @@ func NewKeeperFromKeeperInfo(ki *KeeperInfo) *Keeper {
 		UID:        ki.UID,
 		Generation: InitialGeneration,
 		ChangeTime: time.Time{},
-		Spec:       &KeeperSpec{},
+		Spec: &KeeperSpec{
+			NeverMaster:             ki.NeverMaster,
+			NeverSynchronousReplica: ki.NeverSynchronousReplica,
+		},
 		Status: KeeperStatus{
 			Healthy:         true,
 			LastHealthyTime: time.Now(),
