@@ -116,6 +116,9 @@ type config struct {
 	pgSUPasswordFile        string
 	pgInitialSUUsername     string
 	pgInitialSUPasswordFile string
+
+	neverMaster             bool
+	neverSynchronousReplica bool
 }
 
 var cfg config
@@ -146,6 +149,9 @@ func init() {
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUPassword, "pg-su-password", "", "postgres superuser password. Only one of --pg-su-password or --pg-su-passwordfile must be provided. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUPasswordFile, "pg-su-passwordfile", "", "postgres superuser password file. Only one of --pg-su-password or --pg-su-passwordfile must be provided. Must be the same for all keepers)")
 	CmdKeeper.PersistentFlags().BoolVar(&cfg.debug, "debug", false, "enable debug logging")
+
+	CmdKeeper.PersistentFlags().BoolVar(&cfg.neverMaster, "never-master", false, "prevent keeper from being elected as master")
+	CmdKeeper.PersistentFlags().BoolVar(&cfg.neverSynchronousReplica, "never-synchronous-replica", false, "prevent keeper from being chosen as synchronous replica")
 
 	CmdKeeper.PersistentFlags().MarkDeprecated("id", "please use --uid")
 	CmdKeeper.PersistentFlags().MarkDeprecated("debug", "use --log-level=debug instead")
@@ -459,6 +465,9 @@ type PostgresKeeper struct {
 	lastPGState     *cluster.PostgresState
 
 	waitSyncStandbysSynced bool
+
+	neverMaster             bool
+	neverSynchronousReplica bool
 }
 
 func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
@@ -499,6 +508,9 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 
 		keeperLocalState: &KeeperLocalState{},
 		dbLocalState:     &DBLocalState{},
+
+		neverMaster:             cfg.neverMaster,
+		neverSynchronousReplica: cfg.neverSynchronousReplica,
 
 		e:   e,
 		end: end,
@@ -566,7 +578,10 @@ func (p *PostgresKeeper) updateKeeperInfo() error {
 			Maj: maj,
 			Min: min,
 		},
-		PostgresState: p.getLastPGState(),
+
+		NeverMaster:             p.neverMaster,
+		NeverSynchronousReplica: p.neverSynchronousReplica,
+		PostgresState:           p.getLastPGState(),
 	}
 
 	// The time to live is just to automatically remove old entries, it's

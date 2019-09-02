@@ -549,7 +549,10 @@ func NewCluster(uid string, cs *ClusterSpec) *Cluster {
 	return c
 }
 
-type KeeperSpec struct{}
+type KeeperSpec struct {
+	NeverMaster             bool `json:"neverMaster,omitempty"`
+	NeverSynchronousReplica bool `json:"neverSynchronousReplica,omitempty"`
+}
 
 type KeeperStatus struct {
 	Healthy         bool      `json:"healthy,omitempty"`
