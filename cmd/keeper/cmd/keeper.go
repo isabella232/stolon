@@ -579,9 +579,10 @@ func (p *PostgresKeeper) updateKeeperInfo() error {
 			Min: min,
 		},
 
+		PostgresState: p.getLastPGState(),
+
 		NeverMaster:             p.neverMaster,
 		NeverSynchronousReplica: p.neverSynchronousReplica,
-		PostgresState:           p.getLastPGState(),
 	}
 
 	// The time to live is just to automatically remove old entries, it's
