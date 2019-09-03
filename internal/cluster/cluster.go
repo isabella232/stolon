@@ -549,10 +549,7 @@ func NewCluster(uid string, cs *ClusterSpec) *Cluster {
 	return c
 }
 
-type KeeperSpec struct {
-	NeverMaster             bool `json:"neverMaster,omitempty"`
-	NeverSynchronousReplica bool `json:"neverSynchronousReplica,omitempty"`
-}
+type KeeperSpec struct{}
 
 type KeeperStatus struct {
 	Healthy         bool      `json:"healthy,omitempty"`
@@ -563,6 +560,9 @@ type KeeperStatus struct {
 	PostgresBinaryVersion PostgresBinaryVersion `json:"postgresBinaryVersion,omitempty"`
 
 	ForceFail bool `json:"forceFail,omitempty"`
+
+	NeverMaster             bool `json:"neverMaster,omitempty"`
+	NeverSynchronousReplica bool `json:"neverSynchronousReplica,omitempty"`
 }
 
 type Keeper struct {

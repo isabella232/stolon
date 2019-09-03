@@ -229,13 +229,13 @@ func (s *Sentinel) updateKeepersStatus(cd *cluster.ClusterData, keepersInfo clus
 		}
 	}
 
-	//  Keepers support several command line arguments that should be populated in the
-	//  KeeperSpec by the sentinel. This allows us to make decisions about how to arrange
-	//  the cluster that take into consideration the configuration of each keeper.
+	// Keepers support several command line arguments that should be populated in the
+	// KeeperStatus by the sentinel. This allows us to make decisions about how to arrange
+	// the cluster that take into consideration the configuration of each keeper.
 	for keeperUID, k := range cd.Keepers {
 		if ki, ok := keepersInfo[keeperUID]; ok {
-			k.Spec.NeverMaster = ki.NeverMaster
-			k.Spec.NeverSynchronousReplica = ki.NeverSynchronousReplica
+			k.Status.NeverMaster = ki.NeverMaster
+			k.Status.NeverSynchronousReplica = ki.NeverSynchronousReplica
 		}
 	}
 
@@ -741,7 +741,7 @@ func (s *Sentinel) findBestStandbys(cd *cluster.ClusterData, masterDB *cluster.D
 func (s *Sentinel) findBestNewMasters(cd *cluster.ClusterData, masterDB *cluster.DB) []*cluster.DB {
 	bestNewMasters := []*cluster.DB{}
 	for _, db := range s.findBestStandbys(cd, masterDB) {
-		if k, ok := cd.Keepers[db.Spec.KeeperUID]; ok && k.Spec.NeverMaster {
+		if k, ok := cd.Keepers[db.Spec.KeeperUID]; ok && k.Status.NeverMaster {
 			log.Infow("ignoring keeper since it cannot be master (--never-master)", "db", db.UID, "keeper", db.Spec.KeeperUID)
 			continue
 		}
@@ -1344,7 +1344,7 @@ func (s *Sentinel) updateCluster(cd *cluster.ClusterData, pis cluster.ProxiesInf
 
 							// ignore standbys that cannot be synchronous standbys
 							if db, ok := newcd.DBs[bestStandby.UID]; ok {
-								if keeper, ok := newcd.Keepers[db.Spec.KeeperUID]; ok && keeper.Spec.NeverSynchronousReplica {
+								if keeper, ok := newcd.Keepers[db.Spec.KeeperUID]; ok && keeper.Status.NeverSynchronousReplica {
 									log.Infow("cannot choose standby as synchronous (--never-synchronous-replica)", "db", db.UID, "keeper", keeper.UID)
 									continue
 								}
