@@ -4993,13 +4993,12 @@ func TestUpdateCluster(t *testing.T) {
 						},
 					},
 					"keeper2": &cluster.Keeper{
-						UID: "keeper2",
-						Spec: &cluster.KeeperSpec{
-							NeverSynchronousReplica: true,
-						},
+						UID:  "keeper2",
+						Spec: &cluster.KeeperSpec{},
 						Status: cluster.KeeperStatus{
-							Healthy:         true,
-							LastHealthyTime: now,
+							Healthy:                 true,
+							LastHealthyTime:         now,
+							NeverSynchronousReplica: true,
 						},
 					},
 				},
@@ -5088,13 +5087,12 @@ func TestUpdateCluster(t *testing.T) {
 						},
 					},
 					"keeper2": &cluster.Keeper{
-						UID: "keeper2",
-						Spec: &cluster.KeeperSpec{
-							NeverSynchronousReplica: true,
-						},
+						UID:  "keeper2",
+						Spec: &cluster.KeeperSpec{},
 						Status: cluster.KeeperStatus{
-							Healthy:         true,
-							LastHealthyTime: now,
+							Healthy:                 true,
+							LastHealthyTime:         now,
+							NeverSynchronousReplica: true,
 						},
 					},
 				},
@@ -5189,13 +5187,12 @@ func TestUpdateCluster(t *testing.T) {
 						},
 					},
 					"keeper2": &cluster.Keeper{
-						UID: "keeper2",
-						Spec: &cluster.KeeperSpec{
-							NeverMaster: true,
-						},
+						UID:  "keeper2",
+						Spec: &cluster.KeeperSpec{},
 						Status: cluster.KeeperStatus{
 							Healthy:         true,
 							LastHealthyTime: now,
+							NeverMaster:     true,
 						},
 					},
 				},
@@ -5284,13 +5281,12 @@ func TestUpdateCluster(t *testing.T) {
 						},
 					},
 					"keeper2": &cluster.Keeper{
-						UID: "keeper2",
-						Spec: &cluster.KeeperSpec{
-							NeverMaster: true,
-						},
+						UID:  "keeper2",
+						Spec: &cluster.KeeperSpec{},
 						Status: cluster.KeeperStatus{
 							Healthy:         true,
 							LastHealthyTime: now,
+							NeverMaster:     true,
 						},
 					},
 				},
