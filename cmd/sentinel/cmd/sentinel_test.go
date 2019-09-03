@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"github.com/sorintlab/stolon/internal/timer"
 	"strconv"
 	"strings"
@@ -4994,6 +4995,7 @@ func TestUpdateCluster(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			} else if !testEqualCD(outcd, tt.outcd) {
 				t.Errorf("wrong outcd: got:\n%s\nwant:\n%s", spew.Sdump(outcd), spew.Sdump(tt.outcd))
+				t.Errorf("mismatch (-want +got):\n%s", cmp.Diff(tt.outcd, outcd))
 			}
 		}
 	}
