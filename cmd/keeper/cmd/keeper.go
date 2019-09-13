@@ -119,6 +119,8 @@ type config struct {
 
 	neverMaster             bool
 	neverSynchronousReplica bool
+
+	pgOverrideParameters []string
 }
 
 var cfg config
@@ -148,10 +150,12 @@ func init() {
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUUsername, "pg-su-username", user, "postgres superuser user name. Used for keeper managed instance access and pg_rewind based synchronization. It'll be created on db initialization. Defaults to the name of the effective user running stolon-keeper. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUPassword, "pg-su-password", "", "postgres superuser password. Only one of --pg-su-password or --pg-su-passwordfile must be provided. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUPasswordFile, "pg-su-passwordfile", "", "postgres superuser password file. Only one of --pg-su-password or --pg-su-passwordfile must be provided. Must be the same for all keepers)")
+
 	CmdKeeper.PersistentFlags().BoolVar(&cfg.debug, "debug", false, "enable debug logging")
 
 	CmdKeeper.PersistentFlags().BoolVar(&cfg.neverMaster, "never-master", false, "prevent keeper from being elected as master")
 	CmdKeeper.PersistentFlags().BoolVar(&cfg.neverSynchronousReplica, "never-synchronous-replica", false, "prevent keeper from being chosen as synchronous replica")
+	CmdKeeper.PersistentFlags().StringSliceVar(&cfg.pgOverrideParameters, "postgresql-parameter", []string{}, "postgresql paramerter override.")
 
 	CmdKeeper.PersistentFlags().MarkDeprecated("id", "please use --uid")
 	CmdKeeper.PersistentFlags().MarkDeprecated("debug", "use --log-level=debug instead")
