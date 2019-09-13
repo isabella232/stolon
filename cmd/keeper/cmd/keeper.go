@@ -343,6 +343,11 @@ func (p *PostgresKeeper) createPGParameters(db *cluster.DB) common.Parameters {
 		parameters[k] = v
 	}
 
+	// Override parameters from those supplied to the keeper on boot
+	for k, v := range p.pgParameterOverride {
+		parameters[k] = v
+	}
+
 	parameters["listen_addresses"] = p.pgListenAddress
 
 	parameters["port"] = p.pgPort
