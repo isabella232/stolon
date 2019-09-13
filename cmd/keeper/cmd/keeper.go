@@ -123,6 +123,17 @@ type config struct {
 	pgOverrideParameters []string
 }
 
+func (c *config) parsePgOverrideParameters() map[string]string {
+	m := make(map[string]string)
+
+	for _, e := range c.pgOverrideParameters {
+		s := strings.Split(e, "=")
+		m[s[0]] = s[1]
+	}
+
+	return m
+}
+
 var cfg config
 
 func init() {
@@ -472,6 +483,8 @@ type PostgresKeeper struct {
 
 	neverMaster             bool
 	neverSynchronousReplica bool
+
+	pgParameterOverride map[string]string
 }
 
 func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
@@ -515,6 +528,8 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 
 		neverMaster:             cfg.neverMaster,
 		neverSynchronousReplica: cfg.neverSynchronousReplica,
+
+		pgParameterOverride: cfg.parsePgOverrideParameters(),
 
 		e:   e,
 		end: end,
