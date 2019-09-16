@@ -116,22 +116,38 @@ type config struct {
 	pgSUPasswordFile        string
 	pgInitialSUUsername     string
 	pgInitialSUPasswordFile string
+	pgOverrideParameters    []string
 
 	neverMaster             bool
 	neverSynchronousReplica bool
-
-	pgOverrideParameters []string
 }
 
-func (c *config) parsePgOverrideParameters() map[string]string {
-	m := make(map[string]string)
+// This function parses the captured `--postgresql-parameter` flags that are
+// used to override PostgreSQL configurations for a stolon node. The flag
+// `--postgresql-cluster` can be passed multiple times providing the ability to
+// have multiple overrides, thus it is a stringSlice.
+//
+// The usage of the flag is in the following format:
+//
+//  ```
+//  /bin/stolon-keeper --postgresql-parameter key1=value1 \
+//      --postgresql-parameter key2=value2
+//  ```
+//
+// Where key1 and key2 are the postgresql parameters to be overriden, and
+// value1 and value2 are their respective override values.
+func (c *config) parsePgOverrideParameters() (common.Parameters, error) {
+	parameters := make(common.Parameters)
 
-	for _, e := range c.pgOverrideParameters {
-		s := strings.Split(e, "=")
-		m[s[0]] = s[1]
+	for _, keyEqualsValue := range c.pgOverrideParameters {
+		keyValue := strings.SplitN(keyEqualsValue, "=", 2)
+		if len(keyValue) != 2 {
+			return parameters, fmt.Errorf("invalid --postgresql-parameter format: %s", keyEqualsValue)
+		}
+		parameters[keyValue[0]] = keyValue[1]
 	}
 
-	return m
+	return parameters, nil
 }
 
 var cfg config
@@ -161,12 +177,11 @@ func init() {
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUUsername, "pg-su-username", user, "postgres superuser user name. Used for keeper managed instance access and pg_rewind based synchronization. It'll be created on db initialization. Defaults to the name of the effective user running stolon-keeper. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUPassword, "pg-su-password", "", "postgres superuser password. Only one of --pg-su-password or --pg-su-passwordfile must be provided. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUPasswordFile, "pg-su-passwordfile", "", "postgres superuser password file. Only one of --pg-su-password or --pg-su-passwordfile must be provided. Must be the same for all keepers)")
-
+	CmdKeeper.PersistentFlags().StringSliceVar(&cfg.pgOverrideParameters, "postgresql-parameter", []string{}, "postgresql paramerter override.")
 	CmdKeeper.PersistentFlags().BoolVar(&cfg.debug, "debug", false, "enable debug logging")
 
 	CmdKeeper.PersistentFlags().BoolVar(&cfg.neverMaster, "never-master", false, "prevent keeper from being elected as master")
 	CmdKeeper.PersistentFlags().BoolVar(&cfg.neverSynchronousReplica, "never-synchronous-replica", false, "prevent keeper from being chosen as synchronous replica")
-	CmdKeeper.PersistentFlags().StringSliceVar(&cfg.pgOverrideParameters, "postgresql-parameter", []string{}, "postgresql paramerter override.")
 
 	CmdKeeper.PersistentFlags().MarkDeprecated("id", "please use --uid")
 	CmdKeeper.PersistentFlags().MarkDeprecated("debug", "use --log-level=debug instead")
@@ -343,8 +358,17 @@ func (p *PostgresKeeper) createPGParameters(db *cluster.DB) common.Parameters {
 		parameters[k] = v
 	}
 
-	// Override parameters from those supplied to the keeper on boot
-	for k, v := range p.pgParameterOverride {
+	// Override parameters from those supplied to the keeper on boot.
+	//
+	// CAUTION: If you are not careful with the parameters you override, you can
+	// cause substantial damage to the cluster.
+	//
+	// Ideally this should be put before the `mandatoryPGParameters` block above
+	// in order not to give the user the option of modifying mandatory parameters,
+	// since that can have bad effects on the cluster. However, the
+	// `wal_keep_segments` parameter is part of the `madatoryPPGParameters`, and
+	// we are going to want to override it.
+	for k, v := range p.pgParametersOverride {
 		parameters[k] = v
 	}
 
@@ -452,22 +476,23 @@ type PostgresKeeper struct {
 
 	bootUUID string
 
-	dataDir             string
-	walDir              string
-	listenAddress       string
-	port                string
-	pgListenAddress     string
-	pgAdvertiseAddress  string
-	pgPort              string
-	pgAdvertisePort     string
-	pgBinPath           string
-	pgReplAuthMethod    string
-	pgReplUsername      string
-	pgReplPassword      string
-	pgSUAuthMethod      string
-	pgSUUsername        string
-	pgSUPassword        string
-	pgInitialSUUsername string
+	dataDir              string
+	walDir               string
+	listenAddress        string
+	port                 string
+	pgListenAddress      string
+	pgAdvertiseAddress   string
+	pgPort               string
+	pgAdvertisePort      string
+	pgBinPath            string
+	pgReplAuthMethod     string
+	pgReplUsername       string
+	pgReplPassword       string
+	pgSUAuthMethod       string
+	pgSUUsername         string
+	pgSUPassword         string
+	pgInitialSUUsername  string
+	pgParametersOverride common.Parameters
 
 	sleepInterval  time.Duration
 	requestTimeout time.Duration
@@ -488,8 +513,6 @@ type PostgresKeeper struct {
 
 	neverMaster             bool
 	neverSynchronousReplica bool
-
-	pgParameterOverride map[string]string
 }
 
 func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
@@ -504,6 +527,12 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 		return nil, fmt.Errorf("cannot get absolute datadir path for %q: %v", cfg.dataDir, err)
 	}
 
+	// Check if there are any PostgreSQL parameters to override.
+	pgParametersOverride, err := cfg.parsePgOverrideParameters()
+	if err != nil {
+		return nil, fmt.Errorf("invalid config: %v", err)
+	}
+
 	p := &PostgresKeeper{
 		cfg: cfg,
 
@@ -512,18 +541,19 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 		dataDir: dataDir,
 		walDir:  cfg.walDir,
 
-		pgListenAddress:     cfg.pgListenAddress,
-		pgAdvertiseAddress:  cfg.pgAdvertiseAddress,
-		pgPort:              cfg.pgPort,
-		pgAdvertisePort:     cfg.pgAdvertisePort,
-		pgBinPath:           cfg.pgBinPath,
-		pgReplAuthMethod:    cfg.pgReplAuthMethod,
-		pgReplUsername:      cfg.pgReplUsername,
-		pgReplPassword:      cfg.pgReplPassword,
-		pgSUAuthMethod:      cfg.pgSUAuthMethod,
-		pgSUUsername:        cfg.pgSUUsername,
-		pgSUPassword:        cfg.pgSUPassword,
-		pgInitialSUUsername: cfg.pgInitialSUUsername,
+		pgListenAddress:      cfg.pgListenAddress,
+		pgAdvertiseAddress:   cfg.pgAdvertiseAddress,
+		pgPort:               cfg.pgPort,
+		pgAdvertisePort:      cfg.pgAdvertisePort,
+		pgBinPath:            cfg.pgBinPath,
+		pgReplAuthMethod:     cfg.pgReplAuthMethod,
+		pgReplUsername:       cfg.pgReplUsername,
+		pgReplPassword:       cfg.pgReplPassword,
+		pgSUAuthMethod:       cfg.pgSUAuthMethod,
+		pgSUUsername:         cfg.pgSUUsername,
+		pgSUPassword:         cfg.pgSUPassword,
+		pgInitialSUUsername:  cfg.pgInitialSUUsername,
+		pgParametersOverride: pgParametersOverride,
 
 		sleepInterval:  cluster.DefaultSleepInterval,
 		requestTimeout: cluster.DefaultRequestTimeout,
@@ -533,8 +563,6 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 
 		neverMaster:             cfg.neverMaster,
 		neverSynchronousReplica: cfg.neverSynchronousReplica,
-
-		pgParameterOverride: cfg.parsePgOverrideParameters(),
 
 		e:   e,
 		end: end,
