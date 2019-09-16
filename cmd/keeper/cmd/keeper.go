@@ -1320,11 +1320,18 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 				return
 			}
 
+			// Whether to attempt to resync by simply booting Postgres and replaying
+			// WAL, before falling back to pg_rewind or pg_basebackup.
+			tryArchiveRecovery := true
+			// Whether to attempt a pg_rewind, before falling back to a pg_basebackup.
 			tryPgrewind := true
+
 			if !initialized {
+				tryArchiveRecovery = false
 				tryPgrewind = false
 			}
 			if systemID != followedDB.Status.SystemID {
+				tryArchiveRecovery = false
 				tryPgrewind = false
 			}
 
@@ -1332,6 +1339,51 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 			if tryPgrewind && !ok {
 				log.Warn("no current master, disabling pg_rewind for this resync")
 				tryPgrewind = false
+				// In this case we can try archive recovery because the instance will
+				// be able to attempt and run crash recovery, then when the master
+				// eventually appears it will begin streaming WAL from it.
+			}
+
+			if tryArchiveRecovery {
+				if err = pgm.Start(); err != nil {
+					log.Error("err", zap.Error(err))
+					// If we encounter an error while starting, then attempt to stop to
+					// clean up any state and give the subsequent resync steps a better
+					// chance of success.
+					if err = pgm.Stop(true); err != nil {
+						log.Error("err", zap.Error(err))
+					}
+				}
+
+				// Wait for Postgres to run crash recovery.
+				//
+				// For an old primary, this will involve replaying all WAL, that's
+				// available in pg_wal, since the last checkpoint.
+				// For an old standby, this appears to be just replaying WAL since the
+				// 'Min recovery ending location' value (in the control data).
+				//
+				// Once this has happened, Postgres will start accepting connections
+				// and the function will return successfully, if the timeout hasn't
+				// been breached.
+				//
+				// NOTE: This _could_ result in an infinite loop, if the keeper we're
+				// trying to resync is able to perform crash recovery but has WAL
+				// records that are not present on the master (i.e. a forked timeline).
+				// With cascading replication in place, there shouldn't be a way to get
+				// into this scenario, however if we do then it'll require manually
+				// removing the Postgres data directory (or just PG_VERSION) in order
+				// to trigger a full resync with pg_basebackup.
+				if err = pgm.WaitReady(cd.Cluster.DefSpec().DBWaitReadyTimeout.Duration); err != nil {
+					log.Errorw("timeout waiting for instance to be ready (archive recovery)", zap.Error(err))
+					// Again, stop the instance to clean up after a failed recovery.
+					if err = pgm.Stop(true); err != nil {
+						log.Error("err", zap.Error(err))
+					}
+				} else {
+					log.Infow("successfully recovered by starting postgres")
+					// We can now skip all of the subsequent recovery approaches
+					break
+				}
 			}
 
 			// TODO(sgotti) pg_rewind considers databases on the same timeline
