@@ -1779,6 +1779,8 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 					needsRestartGauge.Set(0) // successful restart implies no longer required
 				}
 			}
+		} else {
+			needsRestartGauge.Set(0)
 		}
 	}
 
