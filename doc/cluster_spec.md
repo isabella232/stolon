@@ -62,7 +62,8 @@ Some options in a running cluster specification can be changed to update the des
 |-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-------------------------|---------|
 | dataRestoreCommand      | defines the command to execute for restoring the db cluster data. %d is replaced with the full path to the db cluster datadir. Use %% to embed an actual % character. Must return a 0 exit code only on success. | yes      | string                  |         |
 | archiveRecoverySettings | archive recovery configuration                                                                                                                                                                                   | yes      | ArchiveRecoverySettings |         |
-| recoveryTargetSettings | recovery target configuration                                                                                                                                                                                     | no       | RecoveryTargetSettings  |         |
+| recoveryTargetSettings  | recovery target configuration                                                                                                                                                                                    | no       | RecoveryTargetSettings  |         |
+| keepExistingData        | whether to keep the existing data and WAL directories, or remove them prior to executing the `dataRestoreCommand`                                                                                                | no       | bool                    | false   |
 
 #### StandbyConfig
 

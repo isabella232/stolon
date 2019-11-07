@@ -1276,10 +1276,16 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 				log.Errorw("failed to stop pg instance", zap.Error(err))
 				return
 			}
-			if err = pgm.RemoveAllIfInitialized(); err != nil {
-				log.Errorw("failed to remove the postgres data dir", zap.Error(err))
-				return
+
+			if db.Spec.PITRConfig.KeepExistingData != nil && *db.Spec.PITRConfig.KeepExistingData {
+				log.Infow("not removing existing postgres data")
+			} else {
+				if err = pgm.RemoveAllIfInitialized(); err != nil {
+					log.Errorw("failed to remove the postgres data dir", zap.Error(err))
+					return
+				}
 			}
+
 			log.Infow("executing DataRestoreCommand")
 			if err = pgm.Restore(db.Spec.PITRConfig.DataRestoreCommand); err != nil {
 				log.Errorw("failed to restore postgres database cluster", zap.Error(err))
