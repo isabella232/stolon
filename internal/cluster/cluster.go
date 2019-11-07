@@ -162,6 +162,7 @@ type PITRConfig struct {
 	DataRestoreCommand      string                   `json:"dataRestoreCommand,omitempty"`
 	ArchiveRecoverySettings *ArchiveRecoverySettings `json:"archiveRecoverySettings,omitempty"`
 	RecoveryTargetSettings  *RecoveryTargetSettings  `json:"recoveryTargetSettings,omitempty"`
+	KeepExistingData        bool                     `json:"keepExistingData,omitempty"`
 }
 
 type ExistingConfig struct {
