@@ -505,6 +505,7 @@ func (p *Manager) WaitRecoveryDone(timeout time.Duration) error {
 			return err
 		}
 		if !os.IsNotExist(err) {
+			log.Infow("recovery.done file created: recovery is complete")
 			return nil
 		}
 		time.Sleep(1 * time.Second)
