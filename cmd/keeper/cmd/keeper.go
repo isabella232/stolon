@@ -1319,6 +1319,11 @@ func (p *PostgresKeeper) postgresKeeperSM(pctx context.Context) {
 				return
 			}
 
+			if db.Spec.Role == common.RoleMaster {
+				// Clear the recovery parameters; We want to be master
+				pgm.SetRecoveryParameters(nil)
+			}
+
 			if db.Spec.IncludeConfig {
 				pgParameters, err = pgm.GetConfigFilePGParameters()
 				if err != nil {
