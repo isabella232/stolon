@@ -218,18 +218,17 @@ func (c *ClusterChecker) Check() error {
 		return nil
 	}
 
-	var db *cluster.DB
-	var ok bool
+	// Use the master database...
+	db, ok := cd.DBs[proxy.Spec.MasterDBUID]
 
-	// Unless we've specified we want to proxy to a sync replica
+	// ...unless we've specified we want to proxy to a sync replica
 	if c.synchronousReplica {
 		if len(db.Status.SynchronousStandbys) > 0 {
 			db, ok = cd.DBs[db.Status.SynchronousStandbys[0]]
 		} else {
 			log.Infow("no synchronous standbys available on master")
+			db, ok = nil, false
 		}
-	} else {
-		db, ok = cd.DBs[proxy.Spec.MasterDBUID]
 	}
 
 	if !ok {
