@@ -15,11 +15,16 @@
 package cmd
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sorintlab/stolon/internal/cluster"
 	"github.com/sorintlab/stolon/internal/common"
 	"github.com/sorintlab/stolon/internal/store"
@@ -150,6 +155,15 @@ func NewKVStore(cfg *CommonConfig) (store.KVStore, error) {
 	})
 }
 
+var (
+	storeCertificateExpirySeconds = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stolon_store_certificate_expiry_seconds",
+			Help: "Time in unix epoch seconds at which the store certificate expires",
+		},
+	)
+)
+
 func NewStore(cfg *CommonConfig) (store.Store, error) {
 	var s store.Store
 
@@ -177,7 +191,35 @@ func NewStore(cfg *CommonConfig) (store.Store, error) {
 		}
 	}
 
+	// If we've specified a certificate, then report the certificate expiry via Prometheus
+	// metrics so people can easily alert when their certs are expiring.
+	if cfg.StoreCertFile != "" {
+		expiry, err := parseX509Expiry(cfg.StoreCertFile)
+		if err != nil {
+			storeCertificateExpirySeconds.Set(float64(-1))
+		} else {
+			storeCertificateExpirySeconds.Set(
+				float64(expiry.UnixNano()) / 1e9,
+			)
+		}
+	}
+
 	return s, nil
+}
+
+func parseX509Expiry(certFile string) (time.Time, error) {
+	data, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		return time.Now(), err
+	}
+
+	block, _ := pem.Decode(data)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return time.Now(), err
+	}
+
+	return cert.NotAfter, nil
 }
 
 func NewElection(cfg *CommonConfig, uid string) (store.Election, error) {

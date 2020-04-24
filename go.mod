@@ -26,10 +26,8 @@ require (
 	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20180203143532-66deaeb636df // indirect
 	github.com/golang/mock v1.1.1
-	github.com/golang/protobuf v1.3.1 // indirect
 	github.com/google/btree v0.0.0-20180124185431-e89373fe6b4a // indirect
-	github.com/google/go-cmp v0.3.1
-	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf // indirect
+	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/googleapis/gnostic v0.1.0 // indirect
 	github.com/gophercloud/gophercloud v0.0.0-20190410012400-2c55d17f707c // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
@@ -51,7 +49,6 @@ require (
 	github.com/imdario/mergo v0.0.0-20141206190957-6633656539c1 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jonboulle/clockwork v0.1.0 // indirect
-	github.com/json-iterator/go v1.1.6 // indirect
 	github.com/juju/ratelimit v1.0.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20140719004912-e5c918b80c17 // indirect
 	github.com/lib/pq v0.0.0-20160831222520-50761b0867bd
@@ -66,7 +63,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
+	github.com/prometheus/client_golang v1.5.1
 	github.com/russross/blackfriday v1.5.1 // indirect
 	github.com/satori/go.uuid v1.1.0
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
@@ -81,7 +78,6 @@ require (
 	github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 // indirect
 	go.uber.org/atomic v1.3.1 // indirect
 	go.uber.org/zap v1.4.1
-	golang.org/x/net v0.0.0-20190311183353-d8887717615a // indirect
 	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421 // indirect
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2 // indirect
 	google.golang.org/genproto v0.0.0-20190307195333-5fe7a883aa19 // indirect
