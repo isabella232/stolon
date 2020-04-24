@@ -5,7 +5,7 @@ jobs:
   release:
     working_directory: /go/src/github.com/sorintlab/stolon
     docker:
-      - image: golang:1.12
+      - image: golang:1.14
     steps:
       - checkout
       - run:
