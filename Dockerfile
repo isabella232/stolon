@@ -2,7 +2,7 @@
 # build
 ################################################################################
 
-FROM golang:1.14 AS build
+FROM golang:1.14.2 AS build
 COPY . /go/src/github.com/sorintlab/stolon
 WORKDIR /go/src/github.com/sorintlab/stolon
 
